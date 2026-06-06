@@ -1,11 +1,12 @@
-# HER2 Status Classification via Multimodal Fusion of WSI and Clinical 
+<img src="https://github.com/user-attachments/assets/8a6db418-fcd8-49c6-af68-b6a8263ea213" align="right" width="150"/>
 
 
+# HER2 Classification via Multimodal Fusion of WSI and Clinical Data
+<br clear="right"/>
 
 A modular deep learning pipeline for HER2 binary classification using multimodal fusion of Whole Slide Images (WSI) and clinical tabular data. Four fusion strategies are compared — concatenation, gated attention, cross-attention, and gated cross-attention — followed by a broad classifier sweep using LazyPredict.
 
 <img width="1536" height="1024" alt="pipeline_abstract_wsi_cli" src="https://github.com/user-attachments/assets/a7435503-df37-4538-abbb-a7a200493559" />
-
 
 ---
 
