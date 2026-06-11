@@ -255,7 +255,7 @@ def process_folder(args):
             print(f"Patch shape: {feats.shape}  (key='{key}')")
 
             with torch.no_grad():  # Disable gradients for memory and speed.
-                slide_emb = model(feats, return_embedding=True).cpu().numpy()
+                slide_emb = model(feats, return_embedding=True).squeeze().cpu().numpy()
 
             # Output: save .npy file with the same stem as the slide .h5 file.
             output_path = output_dir / f"{h5_path.stem}.npy"
