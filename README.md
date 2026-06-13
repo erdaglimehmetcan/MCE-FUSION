@@ -1,5 +1,5 @@
-
 # HER2 Classification via Multimodal Fusion of WSI and Clinical Data
+## Attention-Based Multimodal Fusion
 <br clear="right"/>
 
 <p align="center">
@@ -12,7 +12,7 @@
 </p>
 
 
-A modular deep learning pipeline for HER2 binary classification using multimodal fusion of Whole Slide Images (WSI) and clinical tabular data. Four fusion strategies are compared — concatenation, gated attention, cross-attention, and gated cross-attention — followed by a broad classifier sweep using LazyPredict.
+A modular deep learning pipeline for HER2 binary classification using multimodal fusion of Whole Slide Images (WSI) and clinical tabular data. Four fusion strategies are compared — concatenation, gated attention, cross-attention, and gated cross-attention — alongside unimodal baselines, followed by a broad classifier sweep using LazyPredict.
 
 ---
 <br>
@@ -29,7 +29,7 @@ This repository contains the full pipeline for a thesis study on multimodal canc
 Each data modality is independently encoded into a fixed-size embedding vector and saved as a `.npy` file per patient.
 
 **Stage 2 — Multimodal Fusion, Attention, and Classification**
-WSI and clinical embeddings are fused using one of four attention strategies. The resulting fused embeddings are evaluated across multiple classifiers via LazyPredict.
+WSI and clinical embeddings are fused using one of four attention strategies. The resulting fused embeddings are evaluated across multiple classifiers via LazyPredict. Unimodal baselines (WSI-only, clinical-only) are also evaluated for ablation comparison.
 
 ---
 
@@ -44,16 +44,17 @@ WSI (.svs)
 
 Clinical Data (.xlsx)
   └─ Preprocessing (encoding + imputation + z-score)
-       └─ MLP Encoder (5-layer, untrained)         → Clinical embedding (64-dim, .npy)
+       └─ MLP Encoder (5-layer, fixed random weights, seed=42) → Clinical embedding (64-dim, .npy)
 
 MRI (.nii.gz)  [future work]
   └─ MONAI preprocessing
        └─ MedicalNet 3D ResNet18                   → MRI embedding (512-dim, .npy)
 
 WSI embedding + Clinical embedding
-  └─ [Concat / Gated Attention / Cross-Attention / Gated Cross-Attention]
+  └─ [WSI-Only / Clinical-Only / Concat / Gated Attention / Cross-Attention / Gated Cross-Attention]
        └─ Fused embedding (.npy)
             └─ LazyPredict classifier sweep        → HER2 Positive / Negative
+                 └─ run_visualize_lazypredict_results.py → comparison plots
 ```
 
 ---
@@ -61,26 +62,33 @@ WSI embedding + Clinical embedding
 ## Repository Structure
 
 ```
-├── run_transmil_folder.py          # WSI: patch .h5 → slide embedding .npy via TransMIL
-├── run_clinical_embedding.py       # Clinical: Excel → 64-dim embedding .npy via MLP
-├── run_mri_embeddings.py           # MRI: NIfTI → 512-dim embedding .npy (future work)
-├── run_create_universal_split.py   # Create shared train/val/test split for all models
-├── run_concat_fusion.py            # Fusion: simple concatenation (non-trainable baseline)
-├── run_gated_attention_fusion.py   # Fusion: gated attention (trainable)
-├── run_cross_attention_fusion.py   # Fusion: bidirectional cross-attention (trainable)
-├── run_gated_cross_attention.py    # Fusion: gated cross-attention (trainable)
-├── run_lazypredict_on_fusion.py    # Classifier sweep on any fused embedding folder
+├── run_transmil_folder.py               # WSI: patch .h5 → slide embedding .npy via TransMIL
+├── run_clinical_embedding.py            # Clinical: Excel → 64-dim embedding .npy via MLP
+├── run_mri_embeddings.py                # MRI: NIfTI → 512-dim embedding .npy (future work)
+├── run_create_universal_split.py        # Create shared train/val/test split for all models
 │
-├── wsi_embedding_extraction.ipynb       # Notebook: WSI extraction walkthrough
-├── clinical_embedding_extraction.ipynb  # Notebook: clinical embedding walkthrough
-├── mri_embedding_extraction.ipynb       # Notebook: MRI embedding walkthrough
-├── create_universal_split.ipynb         # Notebook: split creation
-├── concat_fusion_vector.ipynb           # Notebook: concat fusion
-├── gated_attention_fusion.ipynb         # Notebook: gated attention fusion
-├── cross_attention_fusion.ipynb         # Notebook: cross-attention fusion
-├── gated_cross_attention.ipynb          # Notebook: gated cross-attention fusion
-└── lazypredict_on_fusion.ipynb          # Notebook: LazyPredict evaluation
+├── run_wsi_only.py                      # Baseline: WSI embedding only (no fusion)
+├── run_clinical_only.py                 # Baseline: Clinical embedding only (no fusion)
+│
+├── run_concat_fusion.py                 # Fusion: simple concatenation (non-trainable baseline)
+├── run_gated_attention_fusion.py        # Fusion: gated attention (trainable)
+├── run_cross_attention_fusion.py        # Fusion: bidirectional cross-attention (trainable)
+├── run_gated_cross_attention_fusion.py  # Fusion: gated cross-attention (trainable)
+│
+├── run_lazypredict_on_fusion.py         # Classifier sweep on any fused/baseline embedding folder
+├── run_visualize_lazypredict_results.py # Visualization: compare results across all strategies
+│
+└── app.py                               # Local pipeline GUI (Streamlit-based runner)
 ```
+
+---
+
+## Baselines
+
+| Method | Trainable | Output Dim | Description |
+|---|---|---|---|
+| WSI-Only | No | 512 | WSI embedding passed directly to classifier — no fusion |
+| Clinical-Only | No | 64 | Clinical embedding passed directly to classifier — no fusion |
 
 ---
 
@@ -93,7 +101,7 @@ WSI embedding + Clinical embedding
 | Cross-Attention | Yes | 256 | Bidirectional attention; WSI ↔ Clinical |
 | Gated Cross-Attention | Yes | 256 | Cross-attention + sigmoid gate over fused context |
 
-All trainable methods use the same fixed train/val/test split for fair comparison.
+All methods use the same fixed train/val/test split for fair comparison.
 
 ---
 
@@ -163,7 +171,23 @@ python run_create_universal_split.py \
   --output_dir "path/to/splits/universal_split"
 ```
 
-### Step 4 — Run Fusion
+### Step 4 — Run Baselines
+
+```bash
+# WSI-only baseline
+python run_wsi_only.py \
+  --wsi_dir "path/to/WSI_EMBEDDINGS" \
+  --split_dir "path/to/splits/universal_split" \
+  --output_dir "path/to/fused/wsi_only"
+
+# Clinical-only baseline
+python run_clinical_only.py \
+  --clinical_dir "path/to/CLINICAL_EMBEDDINGS" \
+  --split_dir "path/to/splits/universal_split" \
+  --output_dir "path/to/fused/clinical_only"
+```
+
+### Step 5 — Run Fusion
 
 Choose one (or all) fusion strategies:
 
@@ -190,17 +214,17 @@ python run_cross_attention_fusion.py \
   --output_dir "path/to/fused/cross_attention"
 
 # Gated Cross-Attention
-python run_gated_cross_attention.py \
+python run_gated_cross_attention_fusion.py \
   --wsi_dir "path/to/WSI_EMBEDDINGS" \
   --clinical_dir "path/to/CLINICAL_EMBEDDINGS" \
   --split_dir "path/to/splits/universal_split" \
   --output_dir "path/to/fused/gated_cross_attention"
 ```
 
-### Step 5 — Classifier Evaluation
+### Step 6 — Classifier Evaluation
 
 ```bash
-# Run on each fusion output folder
+# Run on each fusion/baseline output folder
 python run_lazypredict_on_fusion.py \
   --fused_dir "path/to/fused/concat" \
   --output_dir "path/to/results/concat"
@@ -210,6 +234,20 @@ python run_lazypredict_on_fusion.py \
   --fused_dir "path/to/fused/gated_cross_attention" \
   --output_dir "path/to/results/gated_cross_attention" \
   --evaluate_test
+```
+
+### Step 7 — Visualize Results
+
+```bash
+python run_visualize_lazypredict_results.py \
+  --input_csvs \
+    "path/to/results/wsi_only/lazy_val_results.csv" \
+    "path/to/results/clinical_only/lazy_val_results.csv" \
+    "path/to/results/concat/lazy_val_results.csv" \
+    "path/to/results/gated_attention/lazy_val_results.csv" \
+    "path/to/results/cross_attention/lazy_val_results.csv" \
+    "path/to/results/gated_cross_attention/lazy_val_results.csv" \
+  --output_dir "path/to/results/visualization"
 ```
 
 ---
@@ -240,7 +278,7 @@ CLINICAL_EMBEDDINGS/
 
 ## Output Structure
 
-Each fusion script produces:
+Each fusion/baseline script produces:
 ```
 fused_output/
 ├── fused_train/          # fused .npy per patient
@@ -268,10 +306,11 @@ results/
 ## Notes
 
 - All embedding extraction is **unsupervised / label-free**. Labels are only used in fusion training and evaluation.
-- The **universal split** must be created once and reused across all fusion methods to ensure fair comparison.
+- The **universal split** must be created once and reused across all methods (baselines and fusion) to ensure fair comparison.
 - The `--evaluate_test` flag in LazyPredict should only be used **after all architecture decisions are finalized** to avoid test set leakage.
+- The clinical MLP uses **fixed random weights** (seed=42) as a reproducible projection encoder. This is an intentional baseline design — labels are not used during clinical embedding extraction.
 - MRI embedding extraction (`run_mri_embeddings.py`) is implemented but not yet connected to the fusion stage. Planned for future work.
-- The clinical MLP uses **fixed random weights** (seed=42) as a projection encoder. Labels are not used during clinical embedding extraction.
+- `app.py` provides a local GUI for running the full pipeline without using the command line.
 
 ---
 
