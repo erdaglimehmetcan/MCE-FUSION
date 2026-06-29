@@ -43,6 +43,8 @@
 #   --epochs         Training epochs. Default: 50
 #   --batch_size     Batch size. Default: 16
 #   --lr             Learning rate. Default: 1e-4
+#   --min_lr         Minimum LR at end of cosine schedule. Default: 1e-6
+#   --warmup_epochs  Linear warmup epochs before cosine decay. Default: 5
 #   --weight_decay   AdamW weight decay. Default: 1e-4
 #   --seed           Random seed. Default: 42
 #
@@ -343,6 +345,10 @@ def main():
     parser.add_argument("--epochs", default=50, type=int)
     parser.add_argument("--batch_size", default=16, type=int)
     parser.add_argument("--lr", default=1e-4, type=float)
+    parser.add_argument("--min_lr", default=1e-6, type=float,
+                        help="Minimum LR at end of cosine schedule.")
+    parser.add_argument("--warmup_epochs", default=5, type=int,
+                        help="Linear warmup epochs before cosine decay starts.")
     parser.add_argument("--weight_decay", default=1e-4, type=float)
     parser.add_argument("--seed", default=42, type=int)
 
@@ -437,6 +443,14 @@ def main():
         weight_decay=args.weight_decay,
     )
 
+    # Cosine annealing scheduler with linear warmup.
+    # T_max is the number of epochs after warmup.
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+        optimizer,
+        T_max=max(1, args.epochs - args.warmup_epochs),
+        eta_min=args.min_lr,
+    )
+
     best_auc = -1.0
     best_path = output_dir / "best_fusion_model.pt"
 
@@ -475,6 +489,18 @@ def main():
             best_auc = val_auc
             torch.save(model.state_dict(), best_path)
             print(f"Saved best model: {best_path}")
+
+        # LR schedule: linear warmup for first warmup_epochs,
+        # then cosine decay down to min_lr.
+        if epoch <= args.warmup_epochs:
+            warmup_factor = epoch / max(1, args.warmup_epochs)
+            for pg in optimizer.param_groups:
+                pg["lr"] = args.lr * warmup_factor
+        else:
+            scheduler.step()
+
+        current_lr = optimizer.param_groups[0]["lr"]
+        print(f"  LR: {current_lr:.2e}")
 
     print("Best validation AUC:", best_auc)
 
@@ -523,6 +549,8 @@ def main():
         f.write(f"Epochs: {args.epochs}\n")
         f.write(f"Batch size: {args.batch_size}\n")
         f.write(f"Learning rate: {args.lr}\n")
+        f.write(f"Min LR: {args.min_lr}\n")
+        f.write(f"Warmup epochs: {args.warmup_epochs}\n")
         f.write(f"Weight decay: {args.weight_decay}\n")
         f.write(f"Best validation AUC: {best_auc}\n")
 
